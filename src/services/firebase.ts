@@ -2,9 +2,19 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
+// Dynamic Domain Detection logic
+const getDynamicAuthDomain = () => {
+  const host = window.location.hostname;
+  // Do not mutate if running locally or in standard preview environments
+  if (host === 'localhost' || host.includes('run.app')) {
+    return "web-zinc-65422.firebaseapp.com";
+  }
+  return host; 
+};
+
 const firebaseConfig = {
   apiKey: "AIzaSyAi67bcyqBpJDq8y4Jucb6ReKzK51URbMg",
-  authDomain: "web-zinc-65422.firebaseapp.com",
+  authDomain: getDynamicAuthDomain(),
   projectId: "web-zinc-65422",
   storageBucket: "web-zinc-65422.firebasestorage.app",
   messagingSenderId: "389317986974",

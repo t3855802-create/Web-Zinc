@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DraftingCompass, Target, Rocket, ArrowRight, X } from 'lucide-react';
 import { auth, googleProvider, registerLead, syncGoogleLead, signInUser } from '../services/firebase';
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 
 const fadeInSlideUp = {
@@ -106,6 +106,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'signup' }: { isOpen: boolea
         navigate('/profile');
       }, 1500);
     } catch (err: any) {
+      alert(`[Developer Overlay - Form Auth]\nCode: ${err.code}\nMessage: ${err.message}`);
       if (err.code === 'auth/email-already-in-use') {
          setError('This email is already registered. Please log in.');
       } else if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
@@ -122,22 +123,14 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'signup' }: { isOpen: boolea
     setIsLoading(true);
     setError(null);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      await syncGoogleLead(result.user);
-      
-      setIsSuccess(true);
-      setTimeout(() => {
-        setIsSuccess(false);
-        onClose();
-        navigate('/profile');
-      }, 1500);
+      // Using redirect for Vercel/mobile stability instead of popup
+      await signInWithRedirect(auth, googleProvider);
+      // Redirects will unload the page, so no state resets here
     } catch (err: any) {
       console.error("FULL GOOGLE AUTH ERROR OBJECT:", err);
-      console.error("Error Code:", err.code);
-      console.error("Error Message:", err.message);
+      alert(`[Developer Overlay - Google Sign In]\nCode: ${err.code}\nMessage: ${err.message}`);
       
       setError(err.message || 'An error occurred with Google Sign In.');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -482,6 +475,24 @@ const Footer = () => {
 export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'signup' | 'signin'>('signup');
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Check for returning users from the Google redirect handshake
+    const checkRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+          await syncGoogleLead(result.user);
+          navigate('/profile');
+        }
+      } catch (err: any) {
+        console.error("AUTHENTICATION REDIRECT ERROR:", err);
+        alert(`[Developer Overlay - Redirect Error]\nCode: ${err.code}\nMessage: ${err.message}`);
+      }
+    };
+    checkRedirectResult();
+  }, [navigate]);
 
   const handleOpenAuth = (mode: 'signup' | 'signin') => {
     setAuthMode(mode);
