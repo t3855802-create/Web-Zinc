@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: leads
+    // Document ID: user uid
+    // Fields:
+    //   - email: string
+    //   - businessName: string
+    //   - niche: string
+    //   - createdAt: timestamp
+    //
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    match /leads/{userId} {
+      // Allow them to GET their own document
+      allow get: if isOwner(userId);
+      
+      // Explicitly block ALL LISTING (No one can list the collection)
+      allow list: if false;
+
+      // Allow writes only to their own document IDs
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if false; // Deny deletion
+    }
+  }
+}
