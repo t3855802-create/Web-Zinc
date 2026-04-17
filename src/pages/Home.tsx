@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DraftingCompass, Target, Rocket, ArrowRight, X } from 'lucide-react';
-import { auth, googleProvider, registerLead, syncGoogleLead } from '../services/firebase';
+import { auth, googleProvider, registerLead, syncGoogleLead, signInUser } from '../services/firebase';
 import { signInWithPopup } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 
@@ -20,7 +20,7 @@ const staggerContainer = {
   }
 };
 
-const Navbar = ({ onSignUpClick }: { onSignUpClick: () => void }) => {
+const Navbar = ({ onAuthClick }: { onAuthClick: (mode: 'signup' | 'signin') => void }) => {
   return (
     <motion.nav 
       initial={{ y: -20, opacity: 0 }}
@@ -30,14 +30,23 @@ const Navbar = ({ onSignUpClick }: { onSignUpClick: () => void }) => {
     >
       <div className="flex items-center gap-6">
         <span className="text-[20px] font-extrabold tracking-[-0.5px] text-white">WebZinc</span>
-        <motion.button 
-          onClick={onSignUpClick}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="px-[18px] py-1.5 text-[13px] font-semibold text-black bg-white rounded-md hover:shadow-[0_0_15px_rgba(34,211,238,0.5)] transition-all"
-        >
-          Sign Up
-        </motion.button>
+        
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => onAuthClick('signin')} 
+            className="text-[13px] font-medium text-zinc-400 hover:text-white transition-colors"
+          >
+            Sign In
+          </button>
+          <motion.button 
+            onClick={() => onAuthClick('signup')}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="px-[18px] py-1.5 text-[13px] font-semibold text-black bg-white rounded-md hover:shadow-[0_0_15px_rgba(34,211,238,0.5)] transition-all"
+          >
+            Sign Up
+          </motion.button>
+        </div>
       </div>
       
       <div className="hidden md:flex items-center space-x-8 text-[13px] font-medium text-white">
@@ -50,9 +59,11 @@ const Navbar = ({ onSignUpClick }: { onSignUpClick: () => void }) => {
   );
 };
 
-const SignUpModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
+const AuthModal = ({ isOpen, onClose, initialMode = 'signup' }: { isOpen: boolean, onClose: () => void, initialMode?: 'signup' | 'signin' }) => {
+  const [isSignUp, setIsSignUp] = useState(initialMode === 'signup');
   const [businessName, setBusinessName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [niche, setNiche] = useState('');
   
   const [isLoading, setIsLoading] = useState(false);
@@ -61,26 +72,46 @@ const SignUpModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
   
   const navigate = useNavigate();
 
+  // Reset to initial mode whenever modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setIsSignUp(initialMode === 'signup');
+      setError(null);
+    }
+  }, [isOpen, initialMode]);
+
+  const toggleMode = () => {
+    setIsSignUp(!isSignUp);
+    setError(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
     try {
-      await registerLead(email, businessName, niche);
+      if (isSignUp) {
+        await registerLead(email, password, businessName, niche);
+      } else {
+        await signInUser(email, password);
+      }
       setIsSuccess(true);
       setTimeout(() => {
         setIsSuccess(false);
         onClose();
         setBusinessName('');
         setEmail('');
+        setPassword('');
         setNiche('');
         navigate('/profile');
-      }, 2000);
+      }, 1500);
     } catch (err: any) {
       if (err.code === 'auth/email-already-in-use') {
          setError('This email is already registered. Please log in.');
+      } else if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+         setError('Invalid credentials. Please try again.');
       } else {
-         setError(err.message || 'An error occurred during registration.');
+         setError(err.message || 'An error occurred during authentication.');
       }
     } finally {
       setIsLoading(false);
@@ -124,12 +155,12 @@ const SignUpModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
           
-          {/* Modal Content */}
+          {/* Modal Content - Slides Out Smoothly on Exit */}
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.95, y: 40 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ type: "spring", duration: 0.5, bounce: 0.3 }}
+            exit={{ opacity: 0, scale: 0.95, y: 40 }}
+            transition={{ type: "spring", duration: 0.5, bounce: 0.2 }}
             className="relative w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-t-2xl sm:rounded-2xl p-6 sm:p-8 shadow-2xl flex flex-col mt-auto sm:mt-0 overflow-hidden"
           >
             <button 
@@ -142,14 +173,15 @@ const SignUpModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
             <AnimatePresence mode="wait">
               {!isSuccess ? (
                 <motion.div 
-                  key="form"
+                  key={`form-${isSignUp ? 'signup' : 'signin'}`}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ duration: 0.2 }}
                   className="w-full flex flex-col"
                 >
                   <h2 className="text-2xl font-bold text-white mb-6 pr-8 w-full text-center sm:text-left">
-                    Join the Zinc Infrastructure
+                    {isSignUp ? "Join the Zinc Infrastructure" : "Welcome Back to WebZinc"}
                   </h2>
 
                   {error && (
@@ -178,46 +210,64 @@ const SignUpModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
 
                   <div className="flex items-center gap-4 mb-6">
                     <div className="h-px bg-zinc-800 flex-1"></div>
-                    <span className="text-[11px] text-zinc-500 font-semibold uppercase tracking-wider">or sign up manually</span>
+                    <span className="text-[11px] text-zinc-500 font-semibold uppercase tracking-wider">
+                      {isSignUp ? "or sign up manually" : "or continue with email"}
+                    </span>
                     <div className="h-px bg-zinc-800 flex-1"></div>
                   </div>
 
                   <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Business Name</label>
-                      <input 
-                        type="text" 
-                        required
-                        value={businessName}
-                        onChange={(e) => setBusinessName(e.target.value)}
-                        className="bg-white/5 border border-white/10 text-white rounded-md px-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-cyan-400 focus:bg-white/10 transition-colors"
-                        placeholder="Apex Dental"
-                      />
-                    </div>
+                    {isSignUp && (
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Business Name</label>
+                        <input 
+                          type="text" 
+                          required
+                          value={businessName}
+                          onChange={(e) => setBusinessName(e.target.value)}
+                          className="bg-white/5 border border-white/10 text-white rounded-md px-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-cyan-400 focus:bg-white/10 transition-colors"
+                          placeholder="Apex Dental"
+                        />
+                      </div>
+                    )}
                     
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Email Info</label>
+                      <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Email</label>
                       <input 
                         type="email" 
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         className="bg-white/5 border border-white/10 text-white rounded-md px-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-cyan-400 focus:bg-white/10 transition-colors"
-                        placeholder="founder@apexdental.com"
+                        placeholder="founder@company.com"
                       />
                     </div>
 
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Niche</label>
+                      <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Password</label>
                       <input 
-                        type="text" 
+                        type="password" 
                         required
-                        value={niche}
-                        onChange={(e) => setNiche(e.target.value)}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         className="bg-white/5 border border-white/10 text-white rounded-md px-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-cyan-400 focus:bg-white/10 transition-colors"
-                        placeholder="e.g. Healthcare, Hospitality..."
+                        placeholder="••••••••"
                       />
                     </div>
+
+                    {isSignUp && (
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Niche</label>
+                        <input 
+                          type="text" 
+                          required
+                          value={niche}
+                          onChange={(e) => setNiche(e.target.value)}
+                          className="bg-white/5 border border-white/10 text-white rounded-md px-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-cyan-400 focus:bg-white/10 transition-colors"
+                          placeholder="e.g. Healthcare, Hospitality..."
+                        />
+                      </div>
+                    )}
 
                     <motion.button 
                       whileHover={{ scale: 1.02 }}
@@ -226,8 +276,16 @@ const SignUpModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
                       disabled={isLoading}
                       className="mt-4 w-full bg-cyan-400 text-cyan-950 text-[15px] font-bold py-3.5 rounded-md hover:bg-cyan-300 hover:shadow-[0_0_20px_rgba(34,211,238,0.4)] disabled:opacity-70 disabled:hover:shadow-none transition-all flex items-center justify-center"
                     >
-                      {isLoading ? "Processing..." : "Create Account"}
+                      {isLoading ? "Processing..." : (isSignUp ? "Create Account" : "Sign In")}
                     </motion.button>
+
+                    <p className="text-center text-[12px] text-zinc-400 mt-2">
+                      {isSignUp ? (
+                        <>Already have an account? <button type="button" onClick={toggleMode} className="text-cyan-400 hover:underline">Sign In</button></>
+                      ) : (
+                        <>New to WebZinc? <button type="button" onClick={toggleMode} className="text-cyan-400 hover:underline">Create an account</button></>
+                      )}
+                    </p>
                   </form>
                 </motion.div>
               ) : (
@@ -241,7 +299,7 @@ const SignUpModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void
                   <div className="w-16 h-16 bg-cyan-400/20 rounded-full flex items-center justify-center mb-6">
                     <Rocket className="w-8 h-8 text-cyan-400" />
                   </div>
-                  <h3 className="text-2xl font-bold text-white mb-2">Welcome to the Network</h3>
+                  <h3 className="text-2xl font-bold text-white mb-2">Welcome {isSignUp ? "to the Network" : "Back"}</h3>
                   <p className="text-zinc-400 text-[14px]">Initializing your digital infrastructure...</p>
                 </motion.div>
               )}
@@ -423,11 +481,17 @@ const Footer = () => {
 
 export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'signup' | 'signin'>('signup');
+
+  const handleOpenAuth = (mode: 'signup' | 'signin') => {
+    setAuthMode(mode);
+    setIsModalOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-[#09090b] selection:bg-cyan-500/30 selection:text-cyan-100 overflow-x-hidden font-sans text-[14px] flex flex-col">
-      <Navbar onSignUpClick={() => setIsModalOpen(true)} />
-      <SignUpModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <Navbar onAuthClick={handleOpenAuth} />
+      <AuthModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} initialMode={authMode} />
       <main className="flex-1">
         <Hero />
         <section className="max-w-[1280px] mx-auto w-full grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-12 px-12 pb-12">

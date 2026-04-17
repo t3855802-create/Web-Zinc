@@ -23,10 +23,8 @@ googleProvider.setCustomParameters({
 });
 
 // Helper to register lead via Email/Password and save to Firestore
-export const registerLead = async (email: string, businessName: string, niche: string) => {
-  const tempPassword = Math.random().toString(36).slice(-10) + "A1!";
-  
-  const userCredential = await createUserWithEmailAndPassword(auth, email, tempPassword);
+export const registerLead = async (email: string, password: string, businessName: string, niche: string) => {
+  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   const user = userCredential.user;
 
   await setDoc(doc(db, "leads", user.uid), {
@@ -55,13 +53,9 @@ export const syncGoogleLead = async (user: any) => {
 };
 
 // Sign in with Email / Password
-export const signInUser = async (email: string) => {
-  // We used a temp password previously for lead gen. If we want them to sign in,
-  // we would normally have an actual password. However, for this requirement
-  // and smooth experience we will assume password is required if they signed up directly
-  // Actually, since they didn't provide a password during sign-up, Google SignIn is best.
-  // For the sake of the task, I will provide the standard method:
-  throw new Error("Email login without password requires a password reset or Google Sign In. Please use Google Sign In.");
+export const signInUser = async (email: string, password: string) => {
+  const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  return userCredential.user;
 };
 
 export const logoutUser = () => signOut(auth);
