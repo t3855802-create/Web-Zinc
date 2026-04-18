@@ -507,7 +507,11 @@ export default function Home() {
         }
       } catch (err: any) {
         console.error("AUTHENTICATION REDIRECT ERROR:", err);
-        alert(`[Developer Overlay - Redirect Error]\nCode: ${err.code}\nMessage: ${err.message}`);
+        if (err.code === 'auth/unauthorized-domain') {
+          alert('Configuration Error: This domain is not authorized for OAuth operations. Please ensure your Firebase Console > Authentication > Settings > Authorized Domains includes this Vercel domain.');
+        } else {
+          alert(`[Developer Overlay - Redirect Error]\nCode: ${err.code}\nMessage: ${err.message}`);
+        }
       } finally {
         setIsRedirectLoading(false);
       }
