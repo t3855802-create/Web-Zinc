@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DraftingCompass, Target, Rocket, ArrowRight, X } from 'lucide-react';
 import { auth, googleProvider, registerLead, syncGoogleLead, signInUser } from '../services/firebase';
-import { signInWithPopup, getRedirectResult, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { signInWithPopup, getRedirectResult, setPersistence, browserLocalPersistence, onAuthStateChanged } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -527,11 +527,16 @@ export default function Home() {
   }, [navigate]);
 
   useEffect(() => {
-    // Once redirect checks are done, if the user was already signed in from a past session, send them to profile
-    if (!isRedirectLoading && !authContextLoading && currentUser) {
-      navigate('/profile', { replace: true });
-    }
-  }, [isRedirectLoading, authContextLoading, currentUser, navigate]);
+    // Passive Listener: Actively catch if a user exists and break the Ghost Loop
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user && !isRedirectLoading) {
+        window.alert("Login detected: " + user.email);
+        navigate('/profile', { replace: true });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [navigate, isRedirectLoading]);
 
   const handleOpenAuth = (mode: 'signup' | 'signin') => {
     setAuthMode(mode);
