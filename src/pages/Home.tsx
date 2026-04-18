@@ -4,6 +4,7 @@ import { DraftingCompass, Target, Rocket, ArrowRight, X } from 'lucide-react';
 import { auth, googleProvider, registerLead, syncGoogleLead, signInUser } from '../services/firebase';
 import { signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const fadeInSlideUp = {
   hidden: { opacity: 0, y: 20 },
@@ -89,11 +90,16 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'signup' }: { isOpen: boolea
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    
+    // Trim to prevent hidden character/space issues causing invalid-credential
+    const cleanEmail = email.trim();
+    const cleanPassword = password.trim();
+
     try {
       if (isSignUp) {
-        await registerLead(email, password, businessName, niche);
+        await registerLead(cleanEmail, cleanPassword, businessName, niche);
       } else {
-        await signInUser(email, password);
+        await signInUser(cleanEmail, cleanPassword);
       }
       setIsSuccess(true);
       setTimeout(() => {
@@ -106,11 +112,14 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'signup' }: { isOpen: boolea
         navigate('/profile');
       }, 1500);
     } catch (err: any) {
-      alert(`[Developer Overlay - Form Auth]\nCode: ${err.code}\nMessage: ${err.message}`);
       if (err.code === 'auth/email-already-in-use') {
          setError('This email is already registered. Please log in.');
       } else if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-         setError('Invalid credentials. Please try again.');
+         if (!isSignUp) {
+             setError("Account not found or invalid credentials. If you are new, please create an account first.");
+         } else {
+             setError('Invalid credentials. Please try again.');
+         }
       } else {
          setError(err.message || 'An error occurred during authentication.');
       }
@@ -475,7 +484,10 @@ const Footer = () => {
 export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'signup' | 'signin'>('signup');
+  const [isRedirectLoading, setIsRedirectLoading] = useState(true);
+  
   const navigate = useNavigate();
+  const { currentUser, loading: authContextLoading } = useAuth();
 
   useEffect(() => {
     // Check for returning users from the Google redirect handshake
@@ -483,21 +495,42 @@ export default function Home() {
       try {
         const result = await getRedirectResult(auth);
         if (result && result.user) {
+          // If we caught a result from Google, ensure the DB is perfectly synced
           await syncGoogleLead(result.user);
-          navigate('/profile');
+          // Navigate is explicitly called here after a proven redirect
+          navigate('/profile', { replace: true });
         }
       } catch (err: any) {
         console.error("AUTHENTICATION REDIRECT ERROR:", err);
         alert(`[Developer Overlay - Redirect Error]\nCode: ${err.code}\nMessage: ${err.message}`);
+      } finally {
+        setIsRedirectLoading(false);
       }
     };
     checkRedirectResult();
   }, [navigate]);
 
+  useEffect(() => {
+    // Once redirect checks are done, if the user was already signed in from a past session, send them to profile
+    if (!isRedirectLoading && !authContextLoading && currentUser) {
+      navigate('/profile', { replace: true });
+    }
+  }, [isRedirectLoading, authContextLoading, currentUser, navigate]);
+
   const handleOpenAuth = (mode: 'signup' | 'signin') => {
     setAuthMode(mode);
     setIsModalOpen(true);
   };
+
+  // Show premium loading spinner while evaluating auth state or redirect results
+  if (isRedirectLoading || authContextLoading) {
+    return (
+      <div className="min-h-screen bg-[#09090b] flex flex-col items-center justify-center">
+        <div className="w-12 h-12 border-4 border-zinc-800 border-t-cyan-400 rounded-full animate-spin mb-4" />
+        <p className="text-zinc-500 font-semibold uppercase tracking-wider text-[11px] animate-pulse">Initializing Security Protocol...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#09090b] selection:bg-cyan-500/30 selection:text-cyan-100 overflow-x-hidden font-sans text-[14px] flex flex-col">
