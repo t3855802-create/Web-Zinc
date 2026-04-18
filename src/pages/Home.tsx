@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DraftingCompass, Target, Rocket, ArrowRight, X } from 'lucide-react';
 import { auth, googleProvider, registerLead, syncGoogleLead, signInUser } from '../services/firebase';
-import { signInWithRedirect, getRedirectResult, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { signInWithPopup, getRedirectResult, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -132,16 +132,23 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'signup' }: { isOpen: boolea
     setIsLoading(true);
     setError(null);
     try {
-      // Set persistence lock strictly right before redirect to ensure hand-off preserves 
+      // Set persistence lock strictly right before popup to ensure hand-off preserves 
       // cookie context strictly against Vercel's Edge node networking
       await setPersistence(auth, browserLocalPersistence);
 
-      // Using redirect for Vercel/mobile stability instead of popup
-      await signInWithRedirect(auth, googleProvider);
-      // Redirects will unload the page, so no state resets here
+      // Temporarily using popup for Vercel/mobile stability debug instead of redirect
+      const result = await signInWithPopup(auth, googleProvider);
+      
+      if (result && result.user) {
+        console.log("GOOGLE LOGIN SUCCESS VIA POPUP");
+        await syncGoogleLead(result.user);
+        navigate('/profile', { replace: true });
+        onClose();
+      }
     } catch (err: any) {
       console.error("FULL GOOGLE AUTH ERROR OBJECT:", err);
-      alert(`[Developer Overlay - Google Sign In]\nCode: ${err.code}\nMessage: ${err.message}`);
+      // Mission: SHOW THE EXACT ERROR CODE IN POPUP
+      window.alert("FIREBASE ERROR: " + err.code);
       
       setError(err.message || 'An error occurred with Google Sign In.');
       setIsLoading(false);

@@ -22,7 +22,7 @@ setPersistence(auth, browserLocalPersistence)
   .catch((err) => console.error("Firebase persistence setup failed:", err));
 
 // Verify auth domain in console for debugging
-console.log("Current Auth Domain:", (auth as any).config?.authDomain || firebaseConfig.authDomain);
+console.log("Using Auth Domain:", (auth as any).config?.authDomain || firebaseConfig.authDomain);
 
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
