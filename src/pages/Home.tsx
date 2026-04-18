@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DraftingCompass, Target, Rocket, ArrowRight, X } from 'lucide-react';
 import { auth, googleProvider, registerLead, syncGoogleLead, signInUser } from '../services/firebase';
-import { signInWithRedirect, getRedirectResult } from 'firebase/auth';
+import { signInWithRedirect, getRedirectResult, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -132,6 +132,10 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'signup' }: { isOpen: boolea
     setIsLoading(true);
     setError(null);
     try {
+      // Set persistence lock strictly right before redirect to ensure hand-off preserves 
+      // cookie context strictly against Vercel's Edge node networking
+      await setPersistence(auth, browserLocalPersistence);
+
       // Using redirect for Vercel/mobile stability instead of popup
       await signInWithRedirect(auth, googleProvider);
       // Redirects will unload the page, so no state resets here
@@ -495,6 +499,7 @@ export default function Home() {
       try {
         const result = await getRedirectResult(auth);
         if (result && result.user) {
+          console.log("GOOGLE LOGIN SUCCESS");
           // If we caught a result from Google, ensure the DB is perfectly synced
           await syncGoogleLead(result.user);
           // Navigate is explicitly called here after a proven redirect
