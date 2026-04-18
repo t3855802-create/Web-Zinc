@@ -527,7 +527,9 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-[#09090b] flex flex-col items-center justify-center">
         <div className="w-12 h-12 border-4 border-zinc-800 border-t-cyan-400 rounded-full animate-spin mb-4" />
-        <p className="text-zinc-500 font-semibold uppercase tracking-wider text-[11px] animate-pulse">Initializing Security Protocol...</p>
+        <p className="text-zinc-500 font-semibold uppercase tracking-wider text-[11px] animate-pulse">
+          Verifying credentials...
+        </p>
       </div>
     );
   }
